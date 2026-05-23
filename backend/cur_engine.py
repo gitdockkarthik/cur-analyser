@@ -1,6 +1,9 @@
+import logging
 import duckdb
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 # Column mappings keyed by format name
 _FORMAT_MAPS = {
@@ -50,6 +53,8 @@ class CUREngine:
         self.file_path = file_path
         self._ext = Path(file_path).suffix.lower()
         self._col_map: Optional[Dict[str, str]] = None
+        if not Path(file_path).exists():
+            raise FileNotFoundError(f"CUR file does not exist: {file_path}")
 
     # ── Internal helpers ─────────────────────────────────────────────────────
 
@@ -65,8 +70,13 @@ class CUREngine:
         try:
             result = con.execute(f"SELECT * FROM {self._read_fn()} LIMIT 1")
             columns = [d[0] for d in result.description]
+            logger.info("CUREngine detected columns: %s", columns)
             fmt = _detect_format(columns)
+            logger.info("CUREngine detected format: %s", fmt)
             self._col_map = _FORMAT_MAPS[fmt]
+        except Exception as exc:
+            logger.error("CUREngine failed to read %s: %s", self.file_path, exc)
+            raise
         finally:
             con.close()
 

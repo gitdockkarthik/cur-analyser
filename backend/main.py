@@ -1,7 +1,9 @@
 import csv
+import logging
 import os
 import random
 import shutil
+import traceback
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -11,6 +13,12 @@ from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 from claude_client import ClaudeClient
 from cur_engine import CUREngine
@@ -50,6 +58,21 @@ def _active_report(db: Session) -> Optional[Report]:
     if not settings or not settings.active_report_id:
         return None
     return db.query(Report).filter(Report.id == settings.active_report_id).first()
+
+
+def _validate_filepath(report: Report) -> str:
+    """Return the filepath if it exists on disk, else raise a descriptive 500."""
+    if not report.filepath:
+        raise HTTPException(500, f"Report id={report.id} has no filepath stored in the database.")
+    p = Path(report.filepath)
+    if not p.exists():
+        raise HTTPException(
+            500,
+            f"CUR file not found on disk: {report.filepath}. "
+            "This usually means the container restarted and lost the ephemeral upload. "
+            "Please re-upload or regenerate the sample data.",
+        )
+    return str(p)
 
 
 def _ensure_settings(db: Session) -> Settings:
@@ -313,32 +336,41 @@ def dashboard_summary(db: Session = Depends(get_db)):
     if not report:
         raise HTTPException(400, "No active report")
 
-    eng = CUREngine(report.filepath)
-    now = datetime.now()
-    this = eng.get_cost_by_service(now.year, now.month)
+    filepath = _validate_filepath(report)
+    logger.info("dashboard/summary — report id=%s file=%s", report.id, filepath)
 
-    prev_dt = (now.replace(day=1) - timedelta(days=1))
-    last = eng.get_cost_by_service(prev_dt.year, prev_dt.month)
+    try:
+        eng = CUREngine(filepath)
+        now = datetime.now()
+        this = eng.get_cost_by_service(now.year, now.month)
 
-    total_this = sum(s["cost"] for s in this)
-    total_last = sum(s["cost"] for s in last)
-    delta = total_this - total_last
-    delta_pct = round(delta / total_last * 100, 1) if total_last else 0
+        prev_dt = now.replace(day=1) - timedelta(days=1)
+        last = eng.get_cost_by_service(prev_dt.year, prev_dt.month)
 
-    top = this[0] if this else {"service": "N/A", "cost": 0}
-    mom = eng.get_mom_delta()
-    biggest = max(mom, key=lambda x: x["pct_change"], default={"service": "N/A", "pct_change": 0})
+        total_this = sum(s["cost"] for s in this)
+        total_last = sum(s["cost"] for s in last)
+        delta = total_this - total_last
+        delta_pct = round(delta / total_last * 100, 1) if total_last else 0
 
-    return {
-        "total_spend":              round(total_this, 2),
-        "last_month_spend":         round(total_last, 2),
-        "delta":                    round(delta, 2),
-        "delta_pct":                delta_pct,
-        "top_service":              top["service"],
-        "top_service_spend":        round(top["cost"], 2),
-        "biggest_increase_service": biggest["service"],
-        "biggest_increase_pct":     biggest.get("pct_change", 0),
-    }
+        top = this[0] if this else {"service": "N/A", "cost": 0}
+        mom = eng.get_mom_delta()
+        biggest = max(mom, key=lambda x: x["pct_change"], default={"service": "N/A", "pct_change": 0})
+
+        return {
+            "total_spend":              round(total_this, 2),
+            "last_month_spend":         round(total_last, 2),
+            "delta":                    round(delta, 2),
+            "delta_pct":                delta_pct,
+            "top_service":              top["service"],
+            "top_service_spend":        round(top["cost"], 2),
+            "biggest_increase_service": biggest["service"],
+            "biggest_increase_pct":     biggest.get("pct_change", 0),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("dashboard/summary failed: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(500, f"Dashboard query failed: {exc}")
 
 
 @app.get("/api/dashboard/service-breakdown")
@@ -350,9 +382,16 @@ def service_breakdown(
     report = _active_report(db)
     if not report:
         raise HTTPException(400, "No active report")
+    filepath = _validate_filepath(report)
     now = datetime.now()
-    data = CUREngine(report.filepath).get_cost_by_service(year or now.year, month or now.month)
-    return {"year": year or now.year, "month": month or now.month, "services": data[:20]}
+    try:
+        data = CUREngine(filepath).get_cost_by_service(year or now.year, month or now.month)
+        return {"year": year or now.year, "month": month or now.month, "services": data[:20]}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("dashboard/service-breakdown failed: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(500, f"Service breakdown query failed: {exc}")
 
 
 @app.get("/api/dashboard/trend")
@@ -360,7 +399,14 @@ def monthly_trend(months: int = Query(default=3), db: Session = Depends(get_db))
     report = _active_report(db)
     if not report:
         raise HTTPException(400, "No active report")
-    return CUREngine(report.filepath).get_monthly_trend(months)
+    filepath = _validate_filepath(report)
+    try:
+        return CUREngine(filepath).get_monthly_trend(months)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("dashboard/trend failed: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(500, f"Trend query failed: {exc}")
 
 
 @app.get("/api/dashboard/mom-delta")
@@ -368,7 +414,14 @@ def mom_delta(db: Session = Depends(get_db)):
     report = _active_report(db)
     if not report:
         raise HTTPException(400, "No active report")
-    return {"deltas": CUREngine(report.filepath).get_mom_delta()}
+    filepath = _validate_filepath(report)
+    try:
+        return {"deltas": CUREngine(filepath).get_mom_delta()}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("dashboard/mom-delta failed: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(500, f"MoM delta query failed: {exc}")
 
 
 @app.get("/api/dashboard/anomalies")
@@ -376,7 +429,14 @@ def anomalies(threshold: float = Query(default=0.2), db: Session = Depends(get_d
     report = _active_report(db)
     if not report:
         raise HTTPException(400, "No active report")
-    return {"anomalies": CUREngine(report.filepath).get_anomalies(threshold)}
+    filepath = _validate_filepath(report)
+    try:
+        return {"anomalies": CUREngine(filepath).get_anomalies(threshold)}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("dashboard/anomalies failed: %s\n%s", exc, traceback.format_exc())
+        raise HTTPException(500, f"Anomalies query failed: {exc}")
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -402,11 +462,34 @@ def test_connection():
     raise HTTPException(501, "S3 integration is Phase 2 — not yet implemented")
 
 
-# ── Health ────────────────────────────────────────────────────────────────────
+# ── Health / Debug ────────────────────────────────────────────────────────────
 
 @app.get("/api/health")
 def health():
     return {"status": "ok", "version": "1.0.0"}
+
+
+@app.get("/api/debug/active-report")
+def debug_active_report(db: Session = Depends(get_db)):
+    """Diagnostic endpoint — shows active report details and whether the file exists on disk."""
+    report = _active_report(db)
+    if not report:
+        return {"active_report": None, "message": "No active report set in settings"}
+    p = Path(report.filepath) if report.filepath else None
+    return {
+        "report_id":    report.id,
+        "filename":     report.filename,
+        "filepath":     report.filepath,
+        "file_exists":  p.exists() if p else False,
+        "uploads_dir":  str(UPLOADS_DIR),
+        "uploads_dir_exists": UPLOADS_DIR.exists(),
+        "uploads_dir_contents": (
+            [f.name for f in UPLOADS_DIR.iterdir()] if UPLOADS_DIR.exists() else []
+        ),
+        "period_start": str(report.period_start),
+        "period_end":   str(report.period_end),
+        "row_count":    report.row_count,
+    }
 
 
 # ── Static frontend ───────────────────────────────────────────────────────────
