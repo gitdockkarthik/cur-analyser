@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports — CUR Analyser</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F3F4F6;color:#1F2937}
+.layout{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:240px;flex-shrink:0;background:#0A1628;display:flex;flex-direction:column}
+.sidebar-brand{padding:20px 16px;border-bottom:1px solid #1E3A5F;display:flex;align-items:center;gap:10px}
+.brand-icon{font-size:22px}
+.brand-text{color:#fff;font-size:15px;font-weight:700;line-height:1.2}
+.brand-sub{color:#64748B;font-size:11px}
+.nav-links{list-style:none;padding:12px 8px;flex:1}
+.nav-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:#94A3B8;text-decoration:none;font-size:13px;font-weight:500;margin-bottom:2px;transition:all .15s}
+.nav-link:hover{background:#1E3A5F;color:#fff}
+.nav-link.active{background:#2563EB;color:#fff}
+.nav-icon{font-size:16px;width:20px;text-align:center}
+.sidebar-footer{padding:16px;border-top:1px solid #1E3A5F}
+.sidebar-footer p{color:#475569;font-size:11px}
+.content{flex:1;overflow-y:auto;padding:28px 32px;background:#F3F4F6}
+.page-header{margin-bottom:28px;display:flex;align-items:flex-start;justify-content:space-between}
+.page-title{font-size:22px;font-weight:700;color:#1F2937}
+.page-subtitle{font-size:13px;color:#6B7280;margin-top:4px}
+.card{background:#fff;border-radius:12px;padding:24px;box-shadow:0 1px 3px rgba(0,0,0,.07);border:1px solid #E5E7EB;margin-bottom:20px}
+/* Upload */
+.upload-area{border:2px dashed #D1D5DB;border-radius:10px;padding:36px;text-align:center;background:#FAFAFA;cursor:pointer;transition:all .15s}
+.upload-area:hover,.upload-area.drag-over{border-color:#2563EB;background:#EFF6FF}
+.upload-icon{font-size:36px;margin-bottom:10px}
+.upload-text{font-size:14px;color:#374151;font-weight:500}
+.upload-sub{font-size:12px;color:#9CA3AF;margin-top:4px}
+.upload-actions{display:flex;align-items:center;gap:12px;margin-top:16px;justify-content:center;flex-wrap:wrap}
+.upload-status{font-size:12px;margin-top:10px;padding:8px 12px;border-radius:6px;display:none}
+.upload-status.success{background:#D1FAE5;color:#065F46;display:block}
+.upload-status.error{background:#FEE2E2;color:#991B1B;display:block}
+.upload-status.info{background:#DBEAFE;color:#1E40AF;display:block}
+/* Table */
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid #E5E7EB}
+td{padding:13px 12px;font-size:13px;color:#374151;border-bottom:1px solid #F3F4F6}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#FAFAFA}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-active{background:#D1FAE5;color:#065F46}
+.badge-inactive{background:#F3F4F6;color:#6B7280}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:#2563EB;color:#fff}
+.btn-primary:hover{background:#1D4ED8}
+.btn-secondary{background:#fff;color:#374151;border:1px solid #D1D5DB}
+.btn-secondary:hover{background:#F9FAFB}
+.btn-danger{background:#FEE2E2;color:#DC3545;border:none}
+.btn-danger:hover{background:#FECACA}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* Empty state */
+.empty-state{text-align:center;padding:48px 24px}
+.empty-icon{font-size:40px;margin-bottom:12px}
+.empty-title{font-size:15px;font-weight:600;color:#374151;margin-bottom:6px}
+.empty-text{font-size:13px;color:#6B7280}
+/* Progress bar */
+.progress{height:3px;background:#E5E7EB;border-radius:2px;overflow:hidden;margin-top:8px;display:none}
+.progress-bar{height:100%;background:#2563EB;width:0;transition:width .3s;border-radius:2px}
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;animation:toastIn .2s ease}
+.toast-success{background:#065F46;color:#fff}
+.toast-error{background:#DC3545;color:#fff}
+@keyframes toastIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon">☁</span>
+      <div>
+        <div class="brand-text">CUR Analyser</div>
+        <div class="brand-sub">AWS Cost Intelligence</div>
+      </div>
+    </div>
+    <ul class="nav-links">
+      <li><a href="index.html" class="nav-link"><span class="nav-icon">🏠</span>Home</a></li>
+      <li><a href="chat.html" class="nav-link"><span class="nav-icon">💬</span>AI Chatbot</a></li>
+      <li><a href="dashboard.html" class="nav-link"><span class="nav-icon">📊</span>Dashboard</a></li>
+      <li><a href="reports.html" class="nav-link active"><span class="nav-icon">📋</span>Reports</a></li>
+      <li><a href="settings.html" class="nav-link"><span class="nav-icon">⚙️</span>Settings</a></li>
+    </ul>
+    <div class="sidebar-footer"><p>PoC v1.0</p></div>
+  </nav>
+
+  <main class="content">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Reports</h1>
+        <p class="page-subtitle">Upload and manage your AWS CUR data files.</p>
+      </div>
+    </div>
+
+    <!-- Upload card -->
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;color:#1F2937;margin-bottom:16px">Upload CUR File</div>
+      <div class="upload-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">☁</div>
+        <div class="upload-text">Click to upload or drag &amp; drop your CUR file</div>
+        <div class="upload-sub">Supports CSV and Parquet — AWS Cost &amp; Usage Report format</div>
+      </div>
+      <input type="file" id="fileInput" accept=".csv,.parquet" style="display:none">
+      <div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+      <div id="uploadStatus" class="upload-status"></div>
+      <div class="upload-actions">
+        <span style="font-size:12px;color:#9CA3AF">— or —</span>
+        <button class="btn btn-secondary" id="btnSample" onclick="generateSample()">
+          ✨ Generate Sample Data
+        </button>
+      </div>
+    </div>
+
+    <!-- Reports table -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="font-size:14px;font-weight:600;color:#1F2937">Report Registry</div>
+        <button class="btn btn-secondary btn-sm" onclick="loadReports()">⟳ Refresh</button>
+      </div>
+
+      <div id="tableWrap">
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <div class="empty-title">No reports yet</div>
+          <div class="empty-text">Upload a CUR file above or generate sample data to get started.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '/api';
+
+// ── Upload ────────────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const uploadStatus = document.getElementById('uploadStatus');
+const progress = document.getElementById('progress');
+const progressBar = document.getElementById('progressBar');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+});
+
+async function uploadFile(file) {
+  const exts = ['.csv', '.parquet'];
+  if (!exts.some(e => file.name.toLowerCase().endsWith(e))) {
+    setStatus('error', 'Only CSV and Parquet files are supported');
+    return;
+  }
+
+  setStatus('info', `Uploading ${file.name}…`);
+  progress.style.display = 'block';
+  let pct = 0;
+  const interval = setInterval(() => {
+    pct = Math.min(pct + 8, 85);
+    progressBar.style.width = pct + '%';
+  }, 200);
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res = await fetch(`${API}/reports/upload`, { method: 'POST', body: fd });
+    clearInterval(interval);
+    progressBar.style.width = '100%';
+    if (!res.ok) throw new Error((await res.json()).detail || 'Upload failed');
+    const data = await res.json();
+    setStatus('success', `✓ Uploaded "${data.filename}" — ${(data.row_count || 0).toLocaleString()} rows, ${fmtDate(data.period_start)} → ${fmtDate(data.period_end)}`);
+    loadReports();
+    showToast('Report uploaded successfully', 'success');
+  } catch (err) {
+    clearInterval(interval);
+    setStatus('error', `✗ ${err.message}`);
+  } finally {
+    setTimeout(() => { progress.style.display = 'none'; progressBar.style.width = '0'; }, 600);
+    fileInput.value = '';
+  }
+}
+
+function setStatus(type, msg) {
+  uploadStatus.className = `upload-status ${type}`;
+  uploadStatus.textContent = msg;
+}
+
+// ── Sample ────────────────────────────────────────────────────────────────────
+async function generateSample() {
+  const btn = document.getElementById('btnSample');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  setStatus('info', 'Generating synthetic CUR data (3 months)…');
+
+  try {
+    const res = await fetch(`${API}/reports/generate-sample`, { method: 'POST' });
+    if (!res.ok) throw new Error((await res.json()).detail);
+    const data = await res.json();
+    setStatus('success', `✓ ${data.message} — ${data.row_count.toLocaleString()} rows`);
+    loadReports();
+    showToast('Sample data generated', 'success');
+  } catch (err) {
+    setStatus('error', `✗ ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Generate Sample Data';
+  }
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+async function loadReports() {
+  const wrap = document.getElementById('tableWrap');
+  try {
+    const res = await fetch(`${API}/reports`);
+    const reports = await res.json();
+
+    if (!reports.length) {
+      wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No reports yet</div><div class="empty-text">Upload a CUR file above or generate sample data to get started.</div></div>`;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Filename</th>
+            <th>Date Range</th>
+            <th>Rows</th>
+            <th>Size</th>
+            <th>Uploaded</th>
+            <th>Status</th>
+            <th style="text-align:right">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${reports.map(r => `
+            <tr id="row-${r.id}">
+              <td style="font-weight:500;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.filename}">${r.filename}</td>
+              <td style="white-space:nowrap">${fmtDate(r.period_start)} → ${fmtDate(r.period_end)}</td>
+              <td>${r.row_count ? r.row_count.toLocaleString() : '—'}</td>
+              <td>${fmtSize(r.file_size)}</td>
+              <td style="white-space:nowrap">${fmtDateTime(r.upload_date)}</td>
+              <td>
+                ${r.is_active
+                  ? '<span class="badge badge-active">✓ Active</span>'
+                  : '<span class="badge badge-inactive">Inactive</span>'}
+              </td>
+              <td style="text-align:right;white-space:nowrap">
+                ${!r.is_active ? `<button class="btn btn-secondary btn-sm" onclick="activateReport(${r.id})">Set Active</button> ` : ''}
+                <button class="btn btn-danger btn-sm" onclick="deleteReport(${r.id}, '${r.filename.replace(/'/g,"\\'")}')">Delete</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  } catch (err) {
+    wrap.innerHTML = `<p style="color:#DC3545;font-size:13px;padding:16px">Failed to load reports: ${err.message}</p>`;
+  }
+}
+
+async function activateReport(id) {
+  try {
+    await fetch(`${API}/reports/${id}/activate`, { method: 'PUT' });
+    loadReports();
+    showToast('Report set as active', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function deleteReport(id, name) {
+  if (!confirm(`Delete report "${name}"? This cannot be undone.`)) return;
+  try {
+    const res = await fetch(`${API}/reports/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error((await res.json()).detail);
+    loadReports();
+    showToast('Report deleted', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmtDate(d) { return d ? d.slice(0, 7) : '—'; }
+function fmtDateTime(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+function fmtSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+function showToast(msg, type = 'success') {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+loadReports();
+</script>
+</body>
+</html>
