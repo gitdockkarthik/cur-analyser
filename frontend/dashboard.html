@@ -150,7 +150,7 @@ canvas{max-height:260px}
 </div>
 
 <script>
-const API = 'https://cur-analyser-production.up.railway.app/api';
+const API = 'https://cur-analyser-production.up.railway.app';
 const COLORS = [
   '#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6',
   '#06B6D4','#F97316','#84CC16','#EC4899','#6366F1',
@@ -162,7 +162,7 @@ let charts = {};
 async function loadAll() {
   try {
     // Validate active report first
-    const reportsRes = await fetch(`${API}/reports`);
+    const reportsRes = await fetch(`${API}/api/reports`);
     const reports = await reportsRes.json();
     const active = reports.find(r => r.is_active);
 
@@ -196,7 +196,7 @@ function showNoReport() {
 // ── Summary ───────────────────────────────────────────────────────────────────
 async function loadSummary() {
   try {
-    const res = await fetch(`${API}/dashboard/summary`);
+    const res = await fetch(`${API}/api/dashboard/summary`);
     if (!res.ok) return;
     const d = await res.json();
 
@@ -219,7 +219,7 @@ async function loadSummary() {
 // ── Breakdown charts ──────────────────────────────────────────────────────────
 async function loadBreakdown() {
   try {
-    const res = await fetch(`${API}/dashboard/service-breakdown`);
+    const res = await fetch(`${API}/api/dashboard/service-breakdown`);
     if (!res.ok) return;
     const d = await res.json();
     const top10 = d.services.slice(0, 10);
@@ -272,7 +272,7 @@ async function loadBreakdown() {
 // ── Trend chart ───────────────────────────────────────────────────────────────
 async function loadTrend() {
   try {
-    const res = await fetch(`${API}/dashboard/trend?months=3`);
+    const res = await fetch(`${API}/api/dashboard/trend?months=3`);
     if (!res.ok) return;
     const d = await res.json();
 
@@ -320,7 +320,7 @@ async function loadTrend() {
 async function loadMom() {
   const el = document.getElementById('momTable');
   try {
-    const res = await fetch(`${API}/dashboard/mom-delta`);
+    const res = await fetch(`${API}/api/dashboard/mom-delta`);
     if (!res.ok) { el.innerHTML = '<div class="empty">No data available</div>'; return; }
     const d = await res.json();
     const deltas = d.deltas || [];
@@ -370,7 +370,7 @@ async function loadMom() {
 async function loadAnomalies() {
   const el = document.getElementById('anomalyCards');
   try {
-    const res = await fetch(`${API}/dashboard/anomalies`);
+    const res = await fetch(`${API}/api/dashboard/anomalies`);
     if (!res.ok) { el.innerHTML = '<div class="empty">No data</div>'; return; }
     const d = await res.json();
     const items = d.anomalies || [];

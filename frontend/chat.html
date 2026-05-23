@@ -160,7 +160,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 
 <script>
-const API = 'https://cur-analyser-production.up.railway.app/api';
+const API = 'https://cur-analyser-production.up.railway.app';
 let sessionId = localStorage.getItem('cur_session') || crypto.randomUUID();
 localStorage.setItem('cur_session', sessionId);
 let chartCounter = 0;
@@ -169,8 +169,8 @@ let chartCounter = 0;
 async function init() {
   try {
     const [settingsRes, reportsRes] = await Promise.all([
-      fetch(`${API}/settings`),
-      fetch(`${API}/reports`)
+      fetch(`${API}/api/settings`),
+      fetch(`${API}/api/reports`)
     ]);
     const settings = await settingsRes.json();
     const reports = await reportsRes.json();
@@ -191,7 +191,7 @@ async function init() {
     }
 
     // Load chat history
-    const histRes = await fetch(`${API}/chat/sessions/${sessionId}/messages`);
+    const histRes = await fetch(`${API}/api/chat/sessions/${sessionId}/messages`);
     const history = await histRes.json();
     if (history.length) {
       document.getElementById('welcomeMsg').remove();
@@ -218,7 +218,7 @@ async function sendMessage() {
   setSendDisabled(true);
 
   try {
-    const res = await fetch(`${API}/chat`, {
+    const res = await fetch(`${API}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, message: text })
@@ -386,7 +386,7 @@ function renderChart(canvasId, content) {
 async function clearChat() {
   if (!confirm('Clear this conversation?')) return;
   try {
-    await fetch(`${API}/chat/sessions/${sessionId}`, { method: 'DELETE' });
+    await fetch(`${API}/api/chat/sessions/${sessionId}`, { method: 'DELETE' });
     location.reload();
   } catch (err) { alert(err.message); }
 }

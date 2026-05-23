@@ -136,7 +136,7 @@ tr:hover td{background:#FAFAFA}
 </div>
 
 <script>
-const API = 'https://cur-analyser-production.up.railway.app/api';
+const API = 'https://cur-analyser-production.up.railway.app';
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 const dropZone = document.getElementById('dropZone');
@@ -175,7 +175,7 @@ async function uploadFile(file) {
   fd.append('file', file);
 
   try {
-    const res = await fetch(`${API}/reports/upload`, { method: 'POST', body: fd });
+    const res = await fetch(`${API}/api/reports/upload`, { method: 'POST', body: fd });
     clearInterval(interval);
     progressBar.style.width = '100%';
     if (!res.ok) throw new Error((await res.json()).detail || 'Upload failed');
@@ -205,7 +205,7 @@ async function generateSample() {
   setStatus('info', 'Generating synthetic CUR data (3 months)…');
 
   try {
-    const res = await fetch(`${API}/reports/generate-sample`, { method: 'POST' });
+    const res = await fetch(`${API}/api/reports/generate-sample`, { method: 'POST' });
     if (!res.ok) throw new Error((await res.json()).detail);
     const data = await res.json();
     setStatus('success', `✓ ${data.message} — ${data.row_count.toLocaleString()} rows`);
@@ -223,7 +223,7 @@ async function generateSample() {
 async function loadReports() {
   const wrap = document.getElementById('tableWrap');
   try {
-    const res = await fetch(`${API}/reports`);
+    const res = await fetch(`${API}/api/reports`);
     const reports = await res.json();
 
     if (!reports.length) {
@@ -272,7 +272,7 @@ async function loadReports() {
 
 async function activateReport(id) {
   try {
-    await fetch(`${API}/reports/${id}/activate`, { method: 'PUT' });
+    await fetch(`${API}/api/reports/${id}/activate`, { method: 'PUT' });
     loadReports();
     showToast('Report set as active', 'success');
   } catch (err) {
@@ -283,7 +283,7 @@ async function activateReport(id) {
 async function deleteReport(id, name) {
   if (!confirm(`Delete report "${name}"? This cannot be undone.`)) return;
   try {
-    const res = await fetch(`${API}/reports/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API}/api/reports/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error((await res.json()).detail);
     loadReports();
     showToast('Report deleted', 'success');

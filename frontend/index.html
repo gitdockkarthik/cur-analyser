@@ -153,13 +153,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 </div>
 
 <script>
-const API = 'https://cur-analyser-production.up.railway.app/api';
+const API = 'https://cur-analyser-production.up.railway.app';
 
 async function loadHome() {
   try {
     const [reportsRes, settingsRes] = await Promise.all([
-      fetch(`${API}/reports`),
-      fetch(`${API}/settings`)
+      fetch(`${API}/api/reports`),
+      fetch(`${API}/api/settings`)
     ]);
     const reports = await reportsRes.json();
     const settings = await settingsRes.json();
@@ -181,7 +181,7 @@ async function loadHome() {
 
       if (activeReport && activeReport.period_start) {
         try {
-          const summaryRes = await fetch(`${API}/dashboard/summary`);
+          const summaryRes = await fetch(`${API}/api/dashboard/summary`);
           if (summaryRes.ok) {
             const s = await summaryRes.json();
             document.getElementById('statSpend').textContent = `$${s.total_spend.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2})}`;
