@@ -1,3 +1,4 @@
+import base64
 import csv
 import logging
 import os
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 from claude_client import ClaudeClient
 from cur_engine import CUREngine
+from sqlalchemy import text
 from database import Base, engine, get_db
 from models import ChatMessage, ChatSession, Report, Settings
 from schemas import (
@@ -34,6 +36,11 @@ from schemas import (
 )
 
 Base.metadata.create_all(bind=engine)
+
+# Add columns that create_all won't apply to existing tables
+with engine.connect() as _conn:
+    _conn.execute(text("ALTER TABLE reports ADD COLUMN IF NOT EXISTS file_content TEXT"))
+    _conn.commit()
 
 app = FastAPI(title="CUR Analyser API", version="1.0.0")
 
@@ -61,17 +68,31 @@ def _active_report(db: Session) -> Optional[Report]:
 
 
 def _validate_filepath(report: Report) -> str:
-    """Return the filepath if it exists on disk, else raise a descriptive 500."""
+    """Return a valid on-disk path for the report, restoring from DB if the file is missing."""
     if not report.filepath:
         raise HTTPException(500, f"Report id={report.id} has no filepath stored in the database.")
+
     p = Path(report.filepath)
-    if not p.exists():
+    if p.exists():
+        return str(p)
+
+    # File is gone (ephemeral filesystem) — restore from stored content
+    if not report.file_content:
         raise HTTPException(
             500,
-            f"CUR file not found on disk: {report.filepath}. "
-            "This usually means the container restarted and lost the ephemeral upload. "
+            f"CUR file not found on disk ({report.filepath}) and no backup content in database. "
             "Please re-upload or regenerate the sample data.",
         )
+
+    logger.info("Restoring report id=%s from database content to %s", report.id, p)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(base64.b64decode(report.file_content.encode("utf-8")))
+        logger.info("Restored %d bytes to %s", p.stat().st_size, p)
+    except Exception as exc:
+        logger.error("Failed to restore file from database: %s", exc)
+        raise HTTPException(500, f"Failed to restore CUR file from database: {exc}")
+
     return str(p)
 
 
@@ -105,6 +126,8 @@ def upload_report(file: UploadFile = File(...), db: Session = Depends(get_db)):
         dest.unlink(missing_ok=True)
         raise HTTPException(400, f"Failed to parse CUR file: {exc}")
 
+    file_content = base64.b64encode(dest.read_bytes()).decode("utf-8")
+
     report = Report(
         filename=file.filename,
         filepath=str(dest),
@@ -113,6 +136,7 @@ def upload_report(file: UploadFile = File(...), db: Session = Depends(get_db)):
         period_start=meta["period_start"],
         period_end=meta["period_end"],
         status="active",
+        file_content=file_content,
     )
     db.add(report)
     db.commit()
@@ -231,6 +255,7 @@ def generate_sample(db: Session = Depends(get_db)):
         writer.writerow(headers)
         writer.writerows(rows)
 
+    file_content = base64.b64encode(dest.read_bytes()).decode("utf-8")
     meta = CUREngine(str(dest)).get_metadata()
 
     report = Report(
@@ -241,6 +266,7 @@ def generate_sample(db: Session = Depends(get_db)):
         period_start=meta["period_start"],
         period_end=meta["period_end"],
         status="active",
+        file_content=file_content,
     )
     db.add(report)
     db.commit()

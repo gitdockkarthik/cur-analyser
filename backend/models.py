@@ -17,6 +17,7 @@ class Report(Base):
     row_count = Column(Integer)
     file_size = Column(BigInteger)
     status = Column(String(50), default="active")
+    file_content = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
 

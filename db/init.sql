@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS reports (
     row_count INTEGER,
     file_size BIGINT,
     status VARCHAR(50) DEFAULT 'active',
+    file_content TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
